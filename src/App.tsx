@@ -8,16 +8,19 @@ import Auth from './pages/Auth';
 import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ChatWithAI from './pages/ChatWithAI';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Auth />} />
-        <Route path="/student" element={<StudentDashboard />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/chat" element={<ChatWithAI />} />
-      </Routes>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Auth />} />
+          <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/chat" element={<ChatWithAI />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }

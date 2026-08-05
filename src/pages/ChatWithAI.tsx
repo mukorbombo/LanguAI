@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { ArrowLeft, Send, Volume2, Mic, Bot, MicOff } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { User, StudentProfile } from '../types';
@@ -142,14 +142,37 @@ export default function ChatWithAI() {
     setIsLoading(true);
 
     try {
+      // Fetch latest admin instructions
+      const instructionsQ = query(collection(db, 'admin_instructions'), orderBy('timestamp', 'desc'), limit(5));
+      const instructionsSnap = await getDocs(instructionsQ);
+      const instructions = instructionsSnap.docs
+        .filter(d => ['active', 'pending'].includes(d.data().status))
+        .map(d => d.data().command)
+        .join('\n');
+
+      // Fetch knowledge base (syllabus, etc.)
+      const kbQ = query(collection(db, 'knowledge_base'), orderBy('timestamp', 'desc'), limit(1));
+      const kbSnap = await getDocs(kbQ);
+      const kb = kbSnap.docs.map(d => d.data().content).join('\n');
+
+      let dynamicContext = `You are a helpful German language tutor. The user is a beginner (A1 level). 
+          Keep your responses relatively short, encouraging, and easy to understand. 
+          Use both English and German to help the user learn. Correct their mistakes gently.`;
+
+      if (kb) {
+        dynamicContext += `\n\nCURRICULUM/SYLLABUS KNOWLEDGE:\n${kb}`;
+      }
+      
+      if (instructions) {
+        dynamicContext += `\n\nSPECIFIC TEACHING INSTRUCTIONS FROM ADMIN:\n${instructions}`;
+      }
+
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           messages: newMessages,
-          context: `You are a helpful German language tutor. The user is a beginner (A1 level). 
-          Keep your responses relatively short, encouraging, and easy to understand. 
-          Use both English and German to help the user learn. Correct their mistakes gently.`
+          context: dynamicContext
         }),
       });
 

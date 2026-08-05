@@ -85,7 +85,7 @@ export default function AdminDashboard() {
       await addDoc(collection(db, 'admin_instructions'), {
         admin_id: user.id,
         command: instruction,
-        status: 'active',
+        status: 'pending',
         timestamp: serverTimestamp()
       });
       setInstruction('');
@@ -115,6 +115,8 @@ export default function AdminDashboard() {
     }
   };
 
+  if (!user) return null;
+
   const chartData = useMemo(() => {
     return studentsList.map(s => ({
       name: s.user.email?.split('@')[0] || 'Unknown',
@@ -123,8 +125,6 @@ export default function AdminDashboard() {
       streak: s.profile.streak || 0
     })).sort((a, b) => b.xp - a.xp).slice(0, 10); // top 10 students
   }, [studentsList]);
-
-  if (!user) return null;
 
   const userGrowthData = [
     { month: 'Jan', users: 10 },
@@ -441,8 +441,8 @@ export default function AdminDashboard() {
                       recentInstructions.map((inst) => (
                         <div key={inst.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-start justify-between">
                           <p className="text-sm text-slate-700 font-medium">{inst.command}</p>
-                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 ml-4 shrink-0">
-                            ACTIVE
+                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 ml-4 shrink-0">
+                            {inst.status}
                           </span>
                         </div>
                       ))

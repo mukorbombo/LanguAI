@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, query, collection, orderBy, limit, onSnapshot } fr
 import { BookOpen, PenTool, Mic, Headphones, BrainCircuit, Flame, Trophy, Ghost, User as UserIcon, Home, Check, HelpCircle, Volume2, MessageSquare, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { User, StudentProfile } from '../types';
+import FoundationsModule from '../FoundationsModule';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
@@ -129,9 +130,9 @@ export default function StudentDashboard() {
   ];
 
   const shadowTasks = [
-    { text: "Hallo, wie geht es dir?" },
-    { text: "Ich möchte bitte einen Kaffee." },
-    { text: "Wo ist der Bahnhof?" }
+    { text: "Hallo, wie geht es dir?", translation: "Hello, how are you?" },
+    { text: "Ich möchte bitte einen Kaffee.", translation: "I would like a coffee, please." },
+    { text: "Wo ist der Bahnhof?", translation: "Where is the train station?" }
   ];
 
   const currentLesson = lessons[currentLessonIndex];
@@ -341,6 +342,7 @@ export default function StudentDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
         {[
+          { id: 'foundations', name: 'Foundations', icon: BookOpen, color: 'text-pink-600', bg: 'bg-pink-100', desc: 'Nouns, verbs, numbers, alphabet and basics' },
           { id: 'reading', name: 'Reading Lab', icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-100', desc: 'Personalized exercises tailored to your level' },
           { id: 'writing', name: 'Writing Studio', icon: PenTool, color: 'text-blue-600', bg: 'bg-blue-100', desc: 'Personalized exercises tailored to your level' },
           { id: 'speaking', name: 'Speaking Gym', icon: Mic, color: 'text-purple-600', bg: 'bg-purple-100', desc: 'Practice conversations with your AI tutor', path: '/chat' },
@@ -818,9 +820,12 @@ export default function StudentDashboard() {
             {isShadowListening ? "Recording..." : "Tap to Speak"}
           </p>
           
-          <div className="w-full min-h-[60px] bg-white rounded-xl flex items-center justify-center p-4">
+          <div className="w-full min-h-[60px] bg-white rounded-xl flex flex-col items-center justify-center p-4">
              {shadowInput ? (
-               <p className="text-xl font-medium text-slate-700">"{shadowInput}"</p>
+               <>
+                 <p className="text-xl font-medium text-slate-700">"{shadowInput}"</p>
+                 <p className="text-sm text-slate-500 mt-2 font-medium">{shadowTasks[shadowIndex].translation}</p>
+               </>
              ) : (
                <p className="text-xl text-slate-300 italic">Waiting for your voice...</p>
              )}
@@ -958,12 +963,13 @@ export default function StudentDashboard() {
         </header>
 
         {activeTab === 'home' && renderHome()}
+        {activeTab === 'foundations' && <FoundationsModule />}
         {activeTab === 'reading' && renderReadingLab()}
         {activeTab === 'writing' && renderWritingStudio()}
         {activeTab === 'listening' && renderListeningDojo()}
         {activeTab === 'vocab' && renderVocabForge()}
         {activeTab === 'shadow' && renderShadowMode()}
-        {activeTab !== 'home' && activeTab !== 'reading' && activeTab !== 'writing' && activeTab !== 'listening' && activeTab !== 'vocab' && activeTab !== 'shadow' && (
+        {activeTab !== 'home' && activeTab !== 'foundations' && activeTab !== 'reading' && activeTab !== 'writing' && activeTab !== 'listening' && activeTab !== 'vocab' && activeTab !== 'shadow' && (
           <div className="flex-1 flex flex-col items-center justify-center">
             <BrainCircuit className="w-16 h-16 text-slate-200 mb-4" />
             <h2 className="text-xl font-bold text-slate-400">Coming Soon</h2>
