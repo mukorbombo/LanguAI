@@ -1,0 +1,10 @@
+{
+  "name": "LinguaAI",
+  "description": "Full-stack AI language learning app with Student, Admin, and AI Tutor Engine portals.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

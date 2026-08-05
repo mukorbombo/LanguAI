@@ -1,0 +1,44 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "email", "type": "string" },
+        { "name": "role", "type": "string" },
+        { "name": "native_lang", "type": "string" },
+        { "name": "target_lang", "type": "string" },
+        { "name": "cefr_level", "type": "string" },
+        { "name": "learning_style", "type": "string" }
+      ],
+      "rules": [
+        { "operations": ["read", "write"], "condition": "request.auth != null && request.auth.uid == id" }
+      ]
+    },
+    {
+      "name": "student_profiles",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "streak", "type": "number" },
+        { "name": "xp", "type": "number" },
+        { "name": "dyslexia_mode", "type": "boolean" },
+        { "name": "parent_email", "type": "string", "optional": true }
+      ],
+      "rules": [
+        { "operations": ["read", "write"], "condition": "request.auth != null && request.auth.uid == id" }
+      ]
+    },
+    {
+      "name": "admin_instructions",
+      "fields": [
+        { "name": "admin_id", "type": "string" },
+        { "name": "command", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "timestamp", "type": "timestamp" }
+      ],
+      "rules": [
+        { "operations": ["read", "write"], "condition": "request.auth != null" }
+      ]
+    }
+  ]
+}

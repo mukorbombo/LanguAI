@@ -1,0 +1,395 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../lib/firebase';
+import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { BarChart3, Users, BookOpen, Send, BrainCircuit, Activity, Clock, FileText, Database, Settings } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { cn } from '../lib/utils';
+import type { User, StudentProfile } from '../types';
+
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
+  const [instruction, setInstruction] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [activeStudentsCount, setActiveStudentsCount] = useState<number>(0);
+  const [recentInstructions, setRecentInstructions] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'knowledge' | 'brain'>('dashboard');
+  
+  const [syllabusText, setSyllabusText] = useState('');
+  const [syllabusFeedback, setSyllabusFeedback] = useState('');
+  const [studentsList, setStudentsList] = useState<{user: User, profile: StudentProfile}[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (!firebaseUser) {
+        navigate('/');
+        return;
+      }
+      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (userDoc.exists()) {
+        const u = userDoc.data() as User;
+        if (u.role !== 'admin') {
+          navigate('/student');
+        } else {
+          setUser(u);
+        }
+      } else {
+        navigate('/student');
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (user && user.role === 'admin') {
+      const fetchStudents = async () => {
+        const usersQ = query(collection(db, 'users'), where('role', '==', 'student'));
+        const usersSnap = await getDocs(usersQ);
+        setActiveStudentsCount(usersSnap.size);
+        
+        const studentsData: {user: User, profile: StudentProfile}[] = [];
+        
+        for (const userDoc of usersSnap.docs) {
+          const u = userDoc.data() as User;
+          const profileDoc = await getDoc(doc(db, 'student_profiles', u.id));
+          if (profileDoc.exists()) {
+            studentsData.push({
+              user: u,
+              profile: profileDoc.data() as StudentProfile
+            });
+          }
+        }
+        setStudentsList(studentsData);
+      };
+      
+      fetchStudents();
+
+      const instructionsQ = query(collection(db, 'admin_instructions'), orderBy('timestamp', 'desc'), limit(10));
+      const unsubInstructions = onSnapshot(instructionsQ, (snap) => {
+        setRecentInstructions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+      
+      return () => {
+        unsubInstructions();
+      };
+    }
+  }, [user]);
+
+  const handleSendInstruction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!instruction.trim() || !user) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'admin_instructions'), {
+        admin_id: user.id,
+        command: instruction,
+        status: 'pending',
+        timestamp: serverTimestamp()
+      });
+      setInstruction('');
+      setFeedback('Instruction sent to AI engine.');
+      setTimeout(() => setFeedback(''), 3000);
+    } catch (error) {
+      console.error(error);
+      setFeedback('Error sending instruction.');
+    }
+    setIsSubmitting(false);
+  };
+  
+  const handleSaveSyllabus = async () => {
+    if (!syllabusText.trim()) return;
+    try {
+      await addDoc(collection(db, 'knowledge_base'), {
+        content: syllabusText,
+        type: 'text',
+        timestamp: serverTimestamp(),
+        admin_id: user?.id
+      });
+      setSyllabusFeedback('Syllabus successfully added to AI Knowledge Base.');
+      setSyllabusText('');
+      setTimeout(() => setSyllabusFeedback(''), 3000);
+    } catch (err) {
+      setSyllabusFeedback('Failed to save syllabus.');
+    }
+  };
+
+  if (!user) return null;
+
+  const chartData = useMemo(() => {
+    return studentsList.map(s => ({
+      name: s.user.email?.split('@')[0] || 'Unknown',
+      xp: s.profile.xp || 0,
+      stage: s.profile.last_lesson_index !== undefined ? s.profile.last_lesson_index + 1 : 1,
+      streak: s.profile.streak || 0
+    })).sort((a, b) => b.xp - a.xp).slice(0, 10); // top 10 students
+  }, [studentsList]);
+
+  const stats = [
+    { name: 'Active Students', value: activeStudentsCount.toString(), icon: Users, trend: '+1 new this week' },
+    { name: 'Avg. CEFR Progress', value: '+0.4', icon: Activity, trend: '+0.1' },
+    { name: 'AI Lessons Generated', value: '45,212', icon: BrainCircuit, trend: '+1,200 this week' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col">
+      <header className="h-20 bg-indigo-900 text-white px-8 flex items-center justify-between shrink-0">
+        <div className="w-full flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
+              <BrainCircuit className="text-white w-6 h-6" />
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-tight">LinguaAI Admin</h1>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className={cn("px-4 py-2 rounded-lg font-bold text-sm transition-colors", activeTab === 'dashboard' ? "bg-indigo-800 text-white" : "text-indigo-300 hover:text-white hover:bg-indigo-800/50")}
+            >
+              Dashboard
+            </button>
+            <button 
+              onClick={() => setActiveTab('knowledge')}
+              className={cn("px-4 py-2 rounded-lg font-bold text-sm transition-colors", activeTab === 'knowledge' ? "bg-indigo-800 text-white" : "text-indigo-300 hover:text-white hover:bg-indigo-800/50")}
+            >
+              Knowledge Base
+            </button>
+            <button 
+              onClick={() => setActiveTab('brain')}
+              className={cn("px-4 py-2 rounded-lg font-bold text-sm transition-colors", activeTab === 'brain' ? "bg-indigo-800 text-white" : "text-indigo-300 hover:text-white hover:bg-indigo-800/50")}
+            >
+              Brain of the Teacher
+            </button>
+          </div>
+          
+          <button 
+            onClick={() => auth.signOut()}
+            className="text-xs font-bold text-indigo-300 uppercase tracking-widest hover:text-white transition-colors ml-4"
+          >
+            Sign Out
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-6xl mx-auto">
+          
+          {activeTab === 'dashboard' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-8">
+                <h2 className="text-2xl font-black text-indigo-950 uppercase tracking-tight">Dashboard Overview</h2>
+                <p className="text-slate-500 font-medium">Monitor student progress and AI activity.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                {stats.map((stat) => (
+                  <div key={stat.name} className="bg-white p-6 rounded-3xl shadow-sm border-b-8 border-slate-200 flex items-start justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{stat.name}</p>
+                      <p className="text-3xl font-black mt-2 text-indigo-950">{stat.value}</p>
+                      <p className="text-sm font-bold text-emerald-600 mt-2">{stat.trend}</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
+                      <stat.icon className="w-6 h-6" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl shadow-sm border-b-8 border-slate-200 mb-10">
+                <div className="mb-6">
+                  <h3 className="font-black text-lg text-indigo-950 uppercase tracking-tight">Student XP Leaderboard</h3>
+                </div>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} />
+                      <YAxis yAxisId="left" orientation="left" stroke="#4f46e5" axisLine={false} tickLine={false} tick={{ fill: '#4f46e5', fontSize: 12, fontWeight: 600 }} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#ea580c" axisLine={false} tickLine={false} tick={{ fill: '#ea580c', fontSize: 12, fontWeight: 600 }} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', fontWeight: 600, color: '#1e293b' }}
+                        cursor={{ fill: '#f8fafc' }}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontWeight: 600, fontSize: '12px', paddingTop: '20px' }} />
+                      <Bar yAxisId="left" dataKey="xp" name="Total XP" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={30} />
+                      <Bar yAxisId="right" dataKey="streak" name="Current Streak" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-3xl shadow-sm border-b-8 border-slate-200 overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-black text-lg text-indigo-950 uppercase tracking-tight">Student Performance</h3>
+                </div>
+                <div className="p-0">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-widest text-slate-400 font-bold">
+                      <tr>
+                        <th className="px-6 py-4 rounded-tl-lg">Student ID / Email</th>
+                        <th className="px-6 py-4">Native Lang</th>
+                        <th className="px-6 py-4">Target Level</th>
+                        <th className="px-6 py-4">Current Stage</th>
+                        <th className="px-6 py-4 rounded-tr-lg">XP / Streak</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                      {studentsList.map((student, i) => (
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4">{student.user.email}</td>
+                          <td className="px-6 py-4 capitalize">{student.profile.native_language || 'Not Set'}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-md text-xs font-bold">{student.user.cefr_level}</span>
+                          </td>
+                          <td className="px-6 py-4">Lesson {student.profile.last_lesson_index !== undefined ? student.profile.last_lesson_index + 1 : 1}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-orange-600 font-bold">{student.profile.streak} 🔥</span>
+                              <span className="text-indigo-600 font-bold">{student.profile.xp} XP</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {studentsList.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-slate-500 italic">No students found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'knowledge' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+              <div className="mb-8 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Database className="w-8 h-8 text-blue-600" />
+                </div>
+                <h2 className="text-3xl font-black text-indigo-950 uppercase tracking-tight">Knowledge Base</h2>
+                <p className="text-slate-500 font-medium mt-2">Upload syllabus and reference materials for the AI to use when teaching.</p>
+              </div>
+              
+              <div className="bg-white p-8 rounded-3xl shadow-sm border-b-8 border-slate-200">
+                <h3 className="font-bold text-slate-800 mb-4">Add New Syllabus</h3>
+                <p className="text-sm text-slate-500 mb-6">Paste the syllabus text here or upload a document. The AI will index this content to create accurate lessons and assignments.</p>
+                
+                <textarea 
+                  value={syllabusText}
+                  onChange={(e) => setSyllabusText(e.target.value)}
+                  placeholder="Paste syllabus text, vocabulary lists, or grammar rules here..."
+                  className="w-full h-64 p-4 border-2 border-slate-200 rounded-xl focus:border-indigo-400 outline-none resize-none mb-4 text-slate-700 font-medium"
+                ></textarea>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-sm rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Upload PDF / DOC
+                    </button>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">(Mock UI for file upload)</span>
+                  </div>
+                  
+                  <button 
+                    onClick={handleSaveSyllabus}
+                    disabled={!syllabusText.trim()}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-200 transition-colors disabled:opacity-50"
+                  >
+                    Save to Knowledge Base
+                  </button>
+                </div>
+                
+                {syllabusFeedback && (
+                  <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold rounded-lg text-sm">
+                    {syllabusFeedback}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'brain' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+              <div className="mb-8 text-center">
+                <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <BrainCircuit className="w-8 h-8 text-orange-600" />
+                </div>
+                <h2 className="text-3xl font-black text-indigo-950 uppercase tracking-tight">Brain of the Teacher</h2>
+                <p className="text-slate-500 font-medium mt-2">Instruct the AI on how to teach and assign tasks to students.</p>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-8">
+                <div className="bg-white rounded-3xl shadow-sm border-b-8 border-slate-200 overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+                    <Settings className="text-indigo-600 w-5 h-5" />
+                    <h3 className="font-black text-lg text-indigo-950 uppercase tracking-tight">Teaching Instructions</h3>
+                  </div>
+                  <div className="p-8">
+                    <p className="text-sm text-slate-500 mb-6">
+                      Type natural language commands to set the pedagogical tone, update the curriculum focus, or schedule assignments for students.
+                    </p>
+                    
+                    <form onSubmit={handleSendInstruction}>
+                      <div className="relative mb-4">
+                        <textarea
+                          value={instruction}
+                          onChange={(e) => setInstruction(e.target.value)}
+                          placeholder="E.g. 'Focus all A1 students on past tense verbs this week' or 'Give an assignment on ordering food at a restaurant to Maria'"
+                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-base font-medium focus:outline-none focus:border-indigo-400 resize-none h-32"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        {feedback ? (
+                          <p className="text-emerald-600 text-sm font-bold">{feedback}</p>
+                        ) : (
+                          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Commands are processed instantly</p>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl flex items-center gap-2 shadow-md shadow-orange-200 transition-colors disabled:opacity-50"
+                        >
+                          <Send className="w-4 h-4" />
+                          Update Teacher Brain
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-3xl shadow-sm border-b-8 border-slate-200">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Clock className="text-blue-500 w-5 h-5" />
+                    <h4 className="font-bold text-indigo-950 uppercase tracking-tight">Instruction History</h4>
+                  </div>
+                  <div className="space-y-4">
+                    {recentInstructions.length === 0 ? (
+                      <p className="text-sm text-slate-500 italic text-center py-4">No recent instructions sent.</p>
+                    ) : (
+                      recentInstructions.map((inst) => (
+                        <div key={inst.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-start justify-between">
+                          <p className="text-sm text-slate-700 font-medium">{inst.command}</p>
+                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 ml-4 shrink-0">
+                            {inst.status}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}
